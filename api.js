@@ -10,8 +10,19 @@ function setupRoutes(app, db) {
 }
 
 function rateLimitMiddleware(req, res, next, db) {
-  const { apikey } = req.body;
-  if (!apikey) return next();
+  const apiKeyFromBody = req.body?.apikey;
+  
+  const apiKeyFromHeader = req.headers?.authorization
+    ? req.headers.authorization.replace('Bearer ', '')
+    : null;
+  
+  const apikey = apiKeyFromBody || apiKeyFromHeader;
+
+  if (!apikey) {
+      console.log("Blocked a request: Missing API Key");
+      return res.status(400).send("Error: API Key is required in the request body.");
+  }
+}
 
   db.get('SELECT tokens, last_used, rate_limit, active FROM apiKeys WHERE key = ?', [apikey], (err, row) => {
     if (err) {
