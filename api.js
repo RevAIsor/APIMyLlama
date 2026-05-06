@@ -23,6 +23,8 @@ function rateLimitMiddleware(req, res, next, db) {
       return res.status(400).send("Error: API Key is required in the request body.");
   }
 
+  req.apikey = apikey;
+
   db.get('SELECT tokens, last_used, rate_limit, active FROM apiKeys WHERE key = ?', [apikey], (err, row) => {
     if (err) {
       console.error('Error checking API key for rate limit:', err.message);
