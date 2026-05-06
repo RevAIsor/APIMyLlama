@@ -22,7 +22,6 @@ function rateLimitMiddleware(req, res, next, db) {
       console.log("Blocked a request: Missing API Key");
       return res.status(400).send("Error: API Key is required in the request body.");
   }
-}
 
   db.get('SELECT tokens, last_used, rate_limit, active FROM apiKeys WHERE key = ?', [apikey], (err, row) => {
     if (err) {
@@ -69,6 +68,7 @@ function rateLimitMiddleware(req, res, next, db) {
       return res.status(403).json({ error: 'Invalid API key' });
     }
   });
+}
 
 function healthCheck(req, res, db) {
   const apikey = req.query.apikey;
