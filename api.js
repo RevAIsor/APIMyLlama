@@ -11,16 +11,16 @@ function setupRoutes(app, db) {
 
 function rateLimitMiddleware(req, res, next, db) {
   const apiKeyFromBody = req.body?.apikey;
-  
+  const apiKeyFromQuery = req.query?.apikey;
   const apiKeyFromHeader = req.headers?.authorization
     ? req.headers.authorization.replace('Bearer ', '')
     : null;
   
-  const apikey = apiKeyFromBody || apiKeyFromHeader;
+  const apikey = apiKeyFromBody || apiKeyFromHeader || apiKeyFromQuery;
 
   if (!apikey) {
       console.log("Blocked a request: Missing API Key");
-      return res.status(400).send("Error: API Key is required in the request body.");
+      return res.status(400).send("Error: API Key is required in the request body or Authorization header.");
   }
 
   req.apikey = apikey;
@@ -73,68 +73,37 @@ function rateLimitMiddleware(req, res, next, db) {
 }
 
 function healthCheck(req, res, db) {
-  const apikey = req.query.apikey;
-
-  if (!apikey) {
-    return res.status(400).json({ error: 'API key is required' });
-  }
-
-  db.get('SELECT key FROM apiKeys WHERE key = ?', [apikey], (err, row) => {
-    if (err) {
-      console.error('Error checking API key:', err.message);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-    if (!row) {
-      console.log('Invalid API key:', apikey);
-      return res.status(403).json({ error: 'Invalid API Key' });
-    }
-
     res.json({ status: 'API is healthy', timestamp: new Date() });
-  });
 }
 
 async function generateResponse(req, res, db) {
-  const { apikey, prompt, model, stream, images, format, system, raw } = req.body;
-
+  const {prompt, model, stream, images, format, system, raw } = req.body;
+  const apikey = req.apikey;
+  
   console.log('Request body:', req.body);
+  
+  try {
+    const ollamaURL = await getOllamaURL();
+    const OLLAMA_API_URL = `${ollamaURL}/api/generate`;
 
-  if (!apikey) {
-    return res.status(400).json({ error: 'API key is required' });
-  }
-
-  db.get('SELECT key FROM apiKeys WHERE key = ?', [apikey], async (err, row) => {
-    if (err) {
-      console.error('Error checking API key:', err.message);
-      return res.status(500).json({ error: 'Internal server error' });
-    }
-    if (!row) {
-      console.log('Invalid API key:', apikey);
-      return res.status(403).json({ error: 'Invalid API Key' });
-    }
-
-    try {
-      const ollamaURL = await getOllamaURL();
-      const OLLAMA_API_URL = `${ollamaURL}/api/generate`;
-
-      axios.post(OLLAMA_API_URL, { model, prompt, stream, images, format, system, raw })
-        .then(response => {
-          db.run('INSERT INTO apiUsage (key) VALUES (?)', [apikey], (err) => {
-            if (err) console.error('Error logging API usage:', err.message);
-          });
-
-          sendWebhookNotification(db, { apikey, prompt, model, stream, images, format, system, raw, timestamp: new Date() });
-
-          res.json(response.data);
-        })
-        .catch(error => {
-          console.error('Error making request to Ollama API:', error.message);
-          res.status(500).json({ error: 'Error making request to Ollama API' });
+    axios.post(OLLAMA_API_URL, { model, prompt, stream, images, format, system, raw })
+      .then(response => {
+        db.run('INSERT INTO apiUsage (key) VALUES (?)', [apikey], (err) => {
+          if (err) console.error('Error logging API usage:', err.message);
         });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Error retrieving Ollama server port' });
-    }
-  });
+
+        sendWebhookNotification(db, { apikey, prompt, model, stream, images, format, system, raw, timestamp: new Date() });
+
+        res.json(response.data);
+      })
+      .catch(error => {
+        console.error('Error making request to Ollama API:', error.message);
+        res.status(500).json({ error: 'Error making request to Ollama API' });
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error retrieving Ollama server port' });
+  }
 }
 
 module.exports = {
