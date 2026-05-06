@@ -7,6 +7,8 @@ function setupRoutes(app, db) {
   app.use((req, res, next) => rateLimitMiddleware(req, res, next, db));
   app.get('/health', (req, res) => healthCheck(req, res, db));
   app.post('/generate', (req, res) => generateResponse(req, res, db));
+  app.post('/chat', (req, res) => chatResponse(req, res, db));
+  app.post('/v1/chat/completions', (req, res) => openAIChatCompletions(req, res, db));
 }
 
 function rateLimitMiddleware(req, res, next, db) {
@@ -99,6 +101,72 @@ async function generateResponse(req, res, db) {
       .catch(error => {
         console.error('Error making request to Ollama API:', error.message);
         res.status(500).json({ error: 'Error making request to Ollama API' });
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error retrieving Ollama server port' });
+  }
+}
+
+async function chatResponse(req, res, db) {
+  const {model, messages, stream, format, options, tools} = req.body;
+  const apikey = req.apikey;
+
+  console.log('Chat request body:', req.body);
+
+  try {
+    const ollamaURL = await getOllamaURL();
+    const OLLAMA_API_URL = `${ollamaURL}/api/chat`;
+
+    axios.post(OLLAMA_API_URL, { model, messages, stream, format, options, tools })
+      .then(response => {
+        db.run('INSERT INTO apiUsage (key) VALUES (?)', [apikey], (err) => {
+          if (err) console.error('Error logging API usage:', err.message);
+        });
+
+        sendWebhookNotification(db, { apikey, model, messages, stream, format, options, tools, timestamp: new Date() });
+
+        res.json(response.data);
+      })
+      .catch(error => {
+        console.error('Error making request to Ollama API:', error.message);
+        res.status(500).json({ error: 'Error making request to Ollama API' });
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error retrieving Ollama server port' });
+  }
+}
+
+async function openAIChatCompletions(req, res, db) {
+  const apikey = req.apikey;
+  const { apikey: _, ...requestBody } = req.body;
+
+  console.log('OpenAI-compatible chat completions request:', { model: req.body.model, messages: req.body.messages?.length });
+
+  try {
+    const ollamaURL = await getOllamaURL();
+    const OLLAMA_API_URL = `${ollamaURL}/v1/chat/completions`;
+
+    axios.post(OLLAMA_API_URL, requestBody, {
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then(response => {
+        db.run('INSERT INTO apiUsage (key) VALUES (?)', [apikey], (err) => {
+          if (err) console.error('Error logging API usage:', err.message);
+        });
+
+        sendWebhookNotification(db, { apikey, model: req.body.model, messages: req.body.messages, stream: req.body.stream, timestamp: new Date() });
+
+        res.json(response.data);
+      })
+      .catch(error => {
+        console.error('Error making request to Ollama API:', error.message);
+        if (error.response) {
+          res.status(error.response.status).json(error.response.data);
+        } else {
+          res.status(500).json({ error: 'Error making request to Ollama API' });
+        }
       });
   } catch (error) {
     console.error(error);
