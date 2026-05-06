@@ -69,7 +69,6 @@ function rateLimitMiddleware(req, res, next, db) {
       return res.status(403).json({ error: 'Invalid API key' });
     }
   });
-}
 
 function healthCheck(req, res, db) {
   const apikey = req.query.apikey;
