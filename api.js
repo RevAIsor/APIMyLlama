@@ -9,12 +9,20 @@ function setupRoutes(app, db) {
   app.post('/generate', (req, res) => generateResponse(req, res, db));
 }
 
+function extractBearerToken(authorizationHeader) {                         
+  if (!authorizationHeader) return null;
+
+  const trimmed = authorizationHeader.trim();
+  if (!trimmed.toLowerCase().startsWith('bearer ')) {
+    return null;
+  }
+
+  return trimmed.slice(7).trim();
+}
 function rateLimitMiddleware(req, res, next, db) {
   const apiKeyFromBody = req.body?.apikey;
-  const apiKeyFromHeader = req.headers?.authorization
-    ? req.headers.authorization.replace('Bearer ', '')
-    : null;
-  
+  const apiKeyFromHeader = extractBearerToken(req.headers?.authorization);
+
   const apikey = apiKeyFromBody || apiKeyFromHeader;
 
   if (!apikey) {
