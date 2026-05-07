@@ -136,7 +136,7 @@ async function chatResponse(req, res, db) {
   const {model, messages, stream, format, options, tools} = req.body;
   const apikey = req.apikey;
 
-  console.log('Chat request body:', req.body);
+  console.log('Chat request body:', { model, messages, stream, format, options, tools });
 
   try {
     const ollamaURL = await getOllamaURL();
@@ -166,7 +166,7 @@ async function openAIChatCompletions(req, res, db) {
   const apikey = req.apikey;
   const { apikey: _, ...requestBody } = req.body;
 
-  console.log('OpenAI-compatible chat completions request:', { model: req.body.model, messages: req.body.messages?.length });
+  console.log('OpenAI-compatible chat completions request:', { model: req.body.model, messages: req.body.messages });
 
   try {
     const ollamaURL = await getOllamaURL();
