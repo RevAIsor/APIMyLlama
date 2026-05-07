@@ -20,7 +20,7 @@ function rateLimitMiddleware(req, res, next, db) {
 
   if (!apikey) {
       console.log("Blocked a request: Missing API Key");
-      return res.status(400).send("Error: API Key is required in the request body or Authorization header.");
+      return res.status(400).json({ error: 'API key is required in the request body, Authorization header, or query string.' });
   }
 
   req.apikey = apikey;
