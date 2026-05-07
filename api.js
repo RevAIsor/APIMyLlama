@@ -84,7 +84,7 @@ function healthCheck(req, res, db) {
       return res.status(500).json({ error: 'Internal server error' });
     }
     if (!row) {
-      console.log('Invalid API key:', apikey);
+      console.log('Invalid API key');
       return res.status(403).json({ error: 'Invalid API Key' });
     }
 
@@ -96,7 +96,7 @@ async function generateResponse(req, res, db) {
   const {prompt, model, stream, images, format, system, raw } = req.body;
   const apikey = req.apikey;
   
-  console.log('Request body:', req.body);
+  console.log('Request body:', { model, prompt, stream, images, format, system, raw });
   
   try {
     const ollamaURL = await getOllamaURL();
