@@ -4,19 +4,18 @@ const axios = require('axios');
 const rateLimits = new Map();
 
 function setupRoutes(app, db) {
-  app.use((req, res, next) => rateLimitMiddleware(req, res, next, db));
   app.get('/health', (req, res) => healthCheck(req, res, db));
+  app.use((req, res, next) => rateLimitMiddleware(req, res, next, db));
   app.post('/generate', (req, res) => generateResponse(req, res, db));
 }
 
 function rateLimitMiddleware(req, res, next, db) {
   const apiKeyFromBody = req.body?.apikey;
-  const apiKeyFromQuery = req.query?.apikey;
   const apiKeyFromHeader = req.headers?.authorization
     ? req.headers.authorization.replace('Bearer ', '')
     : null;
   
-  const apikey = apiKeyFromBody || apiKeyFromHeader || apiKeyFromQuery;
+  const apikey = apiKeyFromBody || apiKeyFromHeader;
 
   if (!apikey) {
       console.log("Blocked a request: Missing API Key");
@@ -73,7 +72,24 @@ function rateLimitMiddleware(req, res, next, db) {
 }
 
 function healthCheck(req, res, db) {
+  const apikey = req.query.apikey;
+
+  if (!apikey) {
+    return res.status(400).json({ error: 'API key is required' });
+  }
+
+  db.get('SELECT key FROM apiKeys WHERE key = ?', [apikey], (err, row) => {
+    if (err) {
+      console.error('Error checking API key:', err.message);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+    if (!row) {
+      console.log('Invalid API key:', apikey);
+      return res.status(403).json({ error: 'Invalid API Key' });
+    }
+
     res.json({ status: 'API is healthy', timestamp: new Date() });
+  });
 }
 
 async function generateResponse(req, res, db) {
